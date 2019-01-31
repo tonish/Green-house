@@ -1,4 +1,4 @@
-﻿import os
+import os
 import pandas as pd
 import numpy as np
 import spectral.io.envi as envi
@@ -113,12 +113,14 @@ def cut_images_in_fldr(D_image,roi,image_path):
     ver_lines = ['v1', 'v2', 'v3']
 
 
+
+
     def create_poly_1st_col(rr):
-        x_mina = df[df['group_id'] == hor_lines[rr]]['X'].min() #upper line first x
-        x_mina2 = df[df['group_id'] == hor_lines[rr]][df['X'] == x_mina]['Y'].values[0] #upper line first y
-        X_minb = df[df['group_id'] == hor_lines[rr + 1]]['X'].min() #lower line first x
-        x_minb2 = df[df['group_id'] == hor_lines[rr + 1]][df['X'] == X_minb]['Y'].values[0] #lower line first y
-        left_vertical = np.array([[0, i] for i in range(x_mina2, x_minb2 + 1)])[1:-1]
+        top_L_x = df[df['group_id'] == hor_lines[rr]]['X'].min() #upper line first x
+        top_L_y = df[df['group_id'] == hor_lines[rr]][df['X'] == top_L_x]['Y'].values[0] #upper line first y
+        bot_L_x = df[df['group_id'] == hor_lines[rr + 1]]['X'].min() #lower line first x
+        bot_L_y = df[df['group_id'] == hor_lines[rr + 1]][df['X'] == bot_L_x]['Y'].values[0] #lower line first y
+        left_vertical = np.array([[0, i] for i in range(top_L_y, bot_L_y + 1)])[1:-1]
 
         a = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0] #intersection of upperline and v1 x
         c = df[df['group_id'] == hor_lines[rr]]['coor'][::-1] # upper line
@@ -129,10 +131,10 @@ def cut_images_in_fldr(D_image,roi,image_path):
         c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor']) # intersection of lowerlnie and v1
         bottom_horizontal = np.array([[i, b.iloc[i][1]-1] for i in range(c[0][0] + 1)])
 		
-        a = df[df['group_id'] == ver_lines[0]]
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])
-        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
+        a = df[df['group_id'] == ver_lines[0]] #vertical line1
+        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor']) #
+        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor']) #
+        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:] #
 
         poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
         poly = poly[poly[:, 0].argsort()]
@@ -227,6 +229,7 @@ def cut_images_in_fldr(D_image,roi,image_path):
         return poly1
 
     print ("line number", lineno())
+    #create the polygones around each plant
     for rr in range(len(hor_lines) - 1):
         print(rr)
 
@@ -235,8 +238,7 @@ def cut_images_in_fldr(D_image,roi,image_path):
         third_column[rr] = create_poly_3rd_col(rr)
         forth_column[rr] = create_poly_4th_col(rr)
 
-	# extract everything for first column
-
+	#names
     first_column_names = ['1A', '2A', '3A', '4A', '5A', '6A', '7A', '8A', '9A', '10A', '11A', '12A', '13A', '14A', '15A',
 						  '16A', '17A', '18A']
     forth_column_names = ['1D', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', '10D', '11D', '12D', '13D', '14D', '15D',
@@ -246,7 +248,7 @@ def cut_images_in_fldr(D_image,roi,image_path):
     third_column_names = ['1C', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', '10C', '11C', '12C', '13C', '14C', '15C',
 						  '16C', '17C', '18C']
 
-
+    # get the keys of the columns
     first_keys = list(first_column.keys())
     second_keys = list(second_column.keys())
     third_keys = list(third_column.keys())
