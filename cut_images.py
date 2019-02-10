@@ -13,58 +13,64 @@ def lineno():
     """Returns the current line number in our program."""
     return inspect.currentframe().f_back.f_lineno
 
-def cut_images_in_fldr(D_image,roi,image_path):
-    print ( D_image)
-    print ("line number", lineno())
-    print ( roi)
-    
-    print ( image_path)
-    cal_path = r'N:\Shahar\test automatic method\Radiometric_1x1.hdr'
-
-	# initialize empty arrays
+def load_roi_file(roi):
     data = []
     sheet_names = []
-
-	# read the TXT ROI file
     with open(roi) as f:
-#        col_names = []
-        data = []
         content = f.readlines()
         for i in content:
-            if "ROI name" in i:
+            if "ROI name:" in i:
                 sheet_names.append(i.split(":")[1].strip())
             else:
-                row = " ".join(i.split())
-                data.append(row.split(" "))
+                data.append(i.split())
+    
+    return data, sheet_names
 
+def read_roi(roi):
+    data, sheet_names = load_roi_file(roi)
 
-	# this list must comply with the same roi features in the file
+    # this list must comply with the same roi features in the file
     group_lines = ['spectralon','v1','v2','v3','h0','h1','h2','h3','h4','h5','h6','h7','h8','h9','h10','h11','h12','h13','h14','h15','h16','h17','h18','Black1','Black2']
     
-	# turn the ROI file to a DF
-    df = pd.DataFrame(data,dtype = int)
+	# turn the ROI file to a DF, filter only to relevant rows
+    df = pd.DataFrame(data, dtype = int)
     first_row = df.loc[df[1]=='ID'].index[0]
-    df = df.loc[first_row:,:]
-    df.columns = df.iloc[0]
-    df = df.iloc[1:,:]
+    df.columns = df.loc[first_row]
+    df = df.loc[first_row+1:, :]
     df.fillna(value=np.nan, inplace=True)
+
+    # keep only relevant columns
     df = df.iloc[:,1:-5]
-    col_list = df.columns.tolist()
-    col_list = col_list[1:3]
-    wv_list = ['B1','B2','B3']
-    new_col_list = col_list+wv_list
-    df.columns = new_col_list
+
+    # rename columns
+    df.columns = df.columns.tolist()[1:3] + ['B1','B2','B3'] 
     df['group_id'] = df.isnull().all(axis=1).cumsum() #give id to a group, a group is seperated by "nan" row
     df = df.dropna()
-    for i in df['group_id'].unique():
-        df.loc[:,'group_id'][df['group_id'] ==i] = group_lines[i]
-        df['X'] = df['X'].astype('int32')
-        df['Y'] = df['Y'].astype('int32')
-        df['coor'] = list(zip(df.X, df.Y))
+
+    df['X'] = df['X'].astype('int32')
+    df['Y'] = df['Y'].astype('int32')
+    df['coor'] = list(zip(df.X, df.Y))
+
+    #start = time.time()
+    df['group_id'] = df['group_id'].map(lambda x: group_lines[x])
+    #end = time.time()
+    #print(end - start)
+
+    return df
+
+
+def cut_images_in_fldr(D_image, roi, image_path, cal_path):
+    print(D_image)
+    print("line number", lineno())
+    print(roi)
+    print(image_path)
+
+	# read the TXT ROI file
+    df = read_roi(roi)
 	
-	# calibrate the imgae
+	# calibrate the image
     image = envi.open(image_path).load().load()
-    cal_img = envi.open(cal_path,image = cal_path[:-3] + 'cal').load()
+    cal_img = envi.open(cal_path + '.hdr',image = cal_path + '.cal').load()
     dark_img = envi.open(D_image).load().mean(axis=0)
     print ("line number", lineno())
 	# get the integration time
@@ -365,7 +371,11 @@ def cut_images_in_fldr(D_image,roi,image_path):
 #    cut_images_in_fldr(DARK,ROI,IMAGE1)
 
 #per image
-IMAGE = r'N:\Shahar\test automatic method\emptyname_2018-09-12_07-25-45\capture\emptyname_2018-09-12_07-25-45.hdr'
-DARK_IMAGE = r'N:\Shahar\test automatic method\emptyname_2018-09-12_07-25-45\capture\DARKREF_emptyname_2018-09-12_07-25-45.hdr'
-ROI = r'N:\Shahar\test automatic method\emptyname_2018-09-12_07-25-45\ROI.txt'
-cut_images_in_fldr(DARK_IMAGE,ROI,IMAGE)
+TEST_ROOT = r'N:\Shahar\test automatic method'
+CAL_FILE = TEST_ROOT + r'\Radiometric_1x1'
+TEST_DIR = TEST_ROOT + r'\emptyname_2018-09-12_07-25-45'
+IMAGE = TEST_DIR + r'\capture\emptyname_2018-09-12_07-25-45.hdr'
+DARK_IMAGE = TEST_DIR + r'\capture\DARKREF_emptyname_2018-09-12_07-25-45.hdr'
+ROI = TEST_DIR + r'\ROI.txt'
+
+cut_images_in_fldr(DARK_IMAGE, ROI, IMAGE, CAL_FILE)
