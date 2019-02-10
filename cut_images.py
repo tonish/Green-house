@@ -71,6 +71,156 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     # read the TXT ROI file
     df = read_roi(roi)
 
+    """
+    cut the images - slice the  image to individual plants
+    """
+
+    first_column = {}
+    second_column = {}
+    third_column = {}
+    forth_column = {}
+
+    hor_lines = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15',
+                 'h16', 'h17', 'h18']
+    ver_lines = ['v1', 'v2', 'v3']
+
+    def create_poly_1st_col(curr_hor_line):
+        top_L_x = df[df['group_id'] == hor_lines[curr_hor_line]]['X'].min()  # upper line first x
+        top_L_y = df[df['group_id'] == hor_lines[curr_hor_line]][df['X'] == top_L_x]['Y'].values[0]  # upper line first y
+        bot_L_x = df[df['group_id'] == hor_lines[curr_hor_line + 1]]['X'].min()  # lower line first x
+        bot_L_y = df[df['group_id'] == hor_lines[curr_hor_line + 1]][df['X'] == bot_L_x]['Y'].values[0]  # lower line first y
+        #left_vertical = np.array([[0, i] for i in range(top_L_y, bot_L_y + 1)])[1:-1]
+        left_vertical = np.array([[0, i] for i in range(top_L_y + 1, bot_L_y)])
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0]  # intersection of upperline and v1 x
+        c = df[df['group_id'] == hor_lines[curr_hor_line]]['coor'][::-1]  # upper line
+        top_horizontal = np.array([[i, c.iloc[i][1]] for i in range(a + 1)])
+
+        b = df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'][::-1]  # lower line
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'],
+                           df[df['group_id'] == ver_lines[0]]['coor'])  # intersection of lowerlnie and v1
+        bottom_horizontal = np.array([[i, b.iloc[i][1] - 1] for i in range(c[0][0] + 1)])
+
+        a = df[df['group_id'] == ver_lines[0]]  # vertical line1
+        b = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])  #
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'],
+                           df[df['group_id'] == ver_lines[0]]['coor'])  #
+        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]  #
+
+        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
+        poly = poly[poly[:, 0].argsort()]
+        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
+        return poly1
+
+    def create_poly_2nd_col(curr_hor_line):
+        a = df[df['group_id'] == ver_lines[0]]
+        b = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])
+        left_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0]
+        b = df[df['group_id'] == hor_lines[curr_hor_line]]
+        d = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
+        top_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0]] for i in range(a, d)])
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0]
+        b = df[df['group_id'] == hor_lines[curr_hor_line + 1]]
+        d = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
+        bottom_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0]] for i in range(a, d)])
+
+        a = df[df['group_id'] == ver_lines[1]]
+        b = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
+        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
+
+        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
+        poly = poly[poly[:, 0].argsort()]
+        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
+        return poly1
+
+    def create_poly_3rd_col(curr_hor_line):
+        a = df[df['group_id'] == ver_lines[1]]
+        b = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
+        left_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i - 1] for i in range(b[0][1], c[0][1])])[1:]
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
+        b = df[df['group_id'] == hor_lines[curr_hor_line]]
+        d = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
+        top_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0]] for i in range(a, d)])
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
+        b = df[df['group_id'] == hor_lines[curr_hor_line + 1]]
+        d = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
+        bottom_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0] - 1] for i in range(a, d)])
+
+        a = df[df['group_id'] == ver_lines[2]]
+        b = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
+        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i - 1] for i in range(b[0][1], c[0][1])])[1:]
+        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
+        poly = poly[poly[:, 0].argsort()]
+        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
+        return poly1
+
+    def create_poly_4th_col(curr_hor_line):
+        x_mina = df[df['group_id'] == hor_lines[curr_hor_line]]['X'].max()
+        x_mina2 = df[df['group_id'] == hor_lines[curr_hor_line]][df['X'] == x_mina]['Y'].values[0]
+        X_minb = df[df['group_id'] == hor_lines[curr_hor_line + 1]]['X'].max()
+        x_minb2 = df[df['group_id'] == hor_lines[curr_hor_line + 1]][df['X'] == X_minb]['Y'].values[0]
+        right_vertical = np.array([[1023, i] for i in range(x_mina2, x_minb2)])[1:-1]
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
+        b = df[df['group_id'] == hor_lines[curr_hor_line]]['X'].max()
+        c = df[df['group_id'] == hor_lines[curr_hor_line]][::-1]
+        top_horizontal = np.array([[i, c[c['X'] == i]['Y'].values[0]] for i in range(a, b)] +
+                                  [[i, c[c['X'] == b]['Y'].values[0]] for i in range(b, 1024)])
+
+        a = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
+        b = df[df['group_id'] == hor_lines[curr_hor_line + 1]]['X'].max()
+        c = df[df['group_id'] == hor_lines[curr_hor_line + 1]][::-1]
+        bottom_horizontal = np.array([[i, c[c['X'] == i]['Y'].values[0] - 1] for i in range(a, b)] +
+                                     [[i, c[c['X'] == b]['Y'].values[0] - 1] for i in range(b, 1024)])
+
+        a = df[df['group_id'] == ver_lines[2]]
+        b = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
+        c = np.intersect1d(df[df['group_id'] == hor_lines[curr_hor_line + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
+        left_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
+        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
+        poly = poly[poly[:, 0].argsort()]
+        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
+        return poly1
+
+    print("line number", lineno())
+    # create the polygones around each plant
+    for curr_h_line in range(len(hor_lines) - 1):
+        print(curr_h_line)
+
+        first_column[curr_h_line] = create_poly_1st_col(curr_h_line)
+        second_column[curr_h_line] = create_poly_2nd_col(curr_h_line)
+        third_column[curr_h_line] = create_poly_3rd_col(curr_h_line)
+        forth_column[curr_h_line] = create_poly_4th_col(curr_h_line)
+
+    # names
+    first_column_names = ['1A', '2A', '3A', '4A', '5A', '6A', '7A', '8A', '9A', '10A', '11A', '12A', '13A', '14A',
+                          '15A',
+                          '16A', '17A', '18A']
+    forth_column_names = ['1D', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', '10D', '11D', '12D', '13D', '14D',
+                          '15D',
+                          '16D', '17D', '18D']
+    second_column_names = ['1B', '2B', '3B', '4B', '5B', '6B', '7B', '8B', '9B', '10B', '11B', '12B', '13B', '14B',
+                           '15B',
+                           '16B', '17B', '18B']
+    third_column_names = ['1C', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', '10C', '11C', '12C', '13C', '14C',
+                          '15C',
+                          '16C', '17C', '18C']
+
+    # get the keys of the columns
+    first_keys = list(first_column.keys())
+    second_keys = list(second_column.keys())
+    third_keys = list(third_column.keys())
+    forth_keys = list(forth_column.keys())
+
     # calibrate the image
     image = envi.open(image_path).load().load()
     cal_img = envi.open(cal_path + '.hdr', image=cal_path + '.cal').load()
@@ -110,201 +260,51 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     nir_wave = float(image.metadata['wavelength'][NIR_CHANNEL])
     diff = np.subtract(nir, red) / (nir_wave - red_wave)
 
-    """
-    cut the images - slice the  image to individual plants
-    """
-
-    first_column = {}
-    second_column = {}
-    third_column = {}
-    forth_column = {}
-
-    hor_lines = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15',
-                 'h16', 'h17', 'h18']
-    ver_lines = ['v1', 'v2', 'v3']
-
-    def create_poly_1st_col(rr):
-        top_L_x = df[df['group_id'] == hor_lines[rr]]['X'].min()  # upper line first x
-        top_L_y = df[df['group_id'] == hor_lines[rr]][df['X'] == top_L_x]['Y'].values[0]  # upper line first y
-        bot_L_x = df[df['group_id'] == hor_lines[rr + 1]]['X'].min()  # lower line first x
-        bot_L_y = df[df['group_id'] == hor_lines[rr + 1]][df['X'] == bot_L_x]['Y'].values[0]  # lower line first y
-        left_vertical = np.array([[0, i] for i in range(top_L_y, bot_L_y + 1)])[1:-1]
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0]  # intersection of upperline and v1 x
-        c = df[df['group_id'] == hor_lines[rr]]['coor'][::-1]  # upper line
-        top_horizontal = np.array([[i, c.iloc[i][1]] for i in range(a + 1)])
-
-        b = df[df['group_id'] == hor_lines[rr + 1]]['coor'][::-1]  # lower line
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'],
-                           df[df['group_id'] == ver_lines[0]]['coor'])  # intersection of lowerlnie and v1
-        bottom_horizontal = np.array([[i, b.iloc[i][1] - 1] for i in range(c[0][0] + 1)])
-
-        a = df[df['group_id'] == ver_lines[0]]  # vertical line1
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])  #
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'],
-                           df[df['group_id'] == ver_lines[0]]['coor'])  #
-        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]  #
-
-        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
-        poly = poly[poly[:, 0].argsort()]
-        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
-        return poly1
-
-    def create_poly_2nd_col(rr):
-        a = df[df['group_id'] == ver_lines[0]]
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])
-        left_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0]
-        b = df[df['group_id'] == hor_lines[rr]]
-        d = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
-        top_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0]] for i in range(a, d)])
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[0]]['coor'])[0][0]
-        b = df[df['group_id'] == hor_lines[rr + 1]]
-        d = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
-        bottom_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0]] for i in range(a, d)])
-
-        a = df[df['group_id'] == ver_lines[1]]
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
-        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
-
-        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
-        poly = poly[poly[:, 0].argsort()]
-        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
-        return poly1
-
-    def create_poly_3rd_col(rr):
-        a = df[df['group_id'] == ver_lines[1]]
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])
-        left_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i - 1] for i in range(b[0][1], c[0][1])])[1:]
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
-        b = df[df['group_id'] == hor_lines[rr]]
-        d = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
-        top_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0]] for i in range(a, d)])
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[1]]['coor'])[0][0]
-        b = df[df['group_id'] == hor_lines[rr + 1]]
-        #     c = df[df['group_id'] == hor_lines[rr]][::-1]
-        d = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
-        bottom_horizontal = np.array([[i, b[b['X'] == i]['Y'].values[0] - 1] for i in range(a, d)])
-
-        a = df[df['group_id'] == ver_lines[2]]
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
-        right_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i - 1] for i in range(b[0][1], c[0][1])])[1:]
-        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
-        poly = poly[poly[:, 0].argsort()]
-        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
-        return poly1
-
-    def create_poly_4th_col(rr):
-        x_mina = df[df['group_id'] == hor_lines[rr]]['X'].max()
-        x_mina2 = df[df['group_id'] == hor_lines[rr]][df['X'] == x_mina]['Y'].values[0]
-        X_minb = df[df['group_id'] == hor_lines[rr + 1]]['X'].max()
-        x_minb2 = df[df['group_id'] == hor_lines[rr + 1]][df['X'] == X_minb]['Y'].values[0]
-        right_vertical = np.array([[1023, i] for i in range(x_mina2, x_minb2)])[1:-1]
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
-        b = df[df['group_id'] == hor_lines[rr]]['X'].max()
-        c = df[df['group_id'] == hor_lines[rr]][::-1]
-        top_horizontal = np.array([[i, c[c['X'] == i]['Y'].values[0]] for i in range(a, b)] +
-                                  [[i, c[c['X'] == b]['Y'].values[0]] for i in range(b, 1024)])
-
-        a = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])[0][0]
-        b = df[df['group_id'] == hor_lines[rr + 1]]['X'].max()
-        c = df[df['group_id'] == hor_lines[rr + 1]][::-1]
-        bottom_horizontal = np.array([[i, c[c['X'] == i]['Y'].values[0] - 1] for i in range(a, b)] +
-                                     [[i, c[c['X'] == b]['Y'].values[0] - 1] for i in range(b, 1024)])
-
-        a = df[df['group_id'] == ver_lines[2]]
-        b = np.intersect1d(df[df['group_id'] == hor_lines[rr]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
-        c = np.intersect1d(df[df['group_id'] == hor_lines[rr + 1]]['coor'], df[df['group_id'] == ver_lines[2]]['coor'])
-        left_vertical = np.array([[a[a['Y'] == i]['X'].values[0], i] for i in range(b[0][1], c[0][1])])[1:]
-        poly = np.concatenate((top_horizontal, left_vertical, bottom_horizontal, right_vertical))
-        poly = poly[poly[:, 0].argsort()]
-        poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
-        return poly1
-
-    print("line number", lineno())
-    # create the polygones around each plant
-    for rr in range(len(hor_lines) - 1):
-        print(rr)
-
-        first_column[rr] = create_poly_1st_col(rr)
-        second_column[rr] = create_poly_2nd_col(rr)
-        third_column[rr] = create_poly_3rd_col(rr)
-        forth_column[rr] = create_poly_4th_col(rr)
-
-    # names
-    first_column_names = ['1A', '2A', '3A', '4A', '5A', '6A', '7A', '8A', '9A', '10A', '11A', '12A', '13A', '14A',
-                          '15A',
-                          '16A', '17A', '18A']
-    forth_column_names = ['1D', '2D', '3D', '4D', '5D', '6D', '7D', '8D', '9D', '10D', '11D', '12D', '13D', '14D',
-                          '15D',
-                          '16D', '17D', '18D']
-    second_column_names = ['1B', '2B', '3B', '4B', '5B', '6B', '7B', '8B', '9B', '10B', '11B', '12B', '13B', '14B',
-                           '15B',
-                           '16B', '17B', '18B']
-    third_column_names = ['1C', '2C', '3C', '4C', '5C', '6C', '7C', '8C', '9C', '10C', '11C', '12C', '13C', '14C',
-                          '15C',
-                          '16C', '17C', '18C']
-
-    # get the keys of the columns
-    first_keys = list(first_column.keys())
-    second_keys = list(second_column.keys())
-    third_keys = list(third_column.keys())
-    forth_keys = list(forth_column.keys())
-
     def imgs2sql(rowcol, names, segmented_dict):  # rowcol = keys of segmented images, names = name of plant
         df_collector = {}
 
         for key1, name in zip(rowcol, names):
             print(key1, name)
-            print('1', timeit.strftime("%H:%M:%S"))
-            loop_DIFF = diff[segmented_dict[key1][1], segmented_dict[key1][0]]
-            val = filters.threshold_otsu(loop_DIFF)
-            loop_DIFF[np.where(loop_DIFF < val)] = val
-            val = filters.threshold_otsu(loop_DIFF)
-            a = np.where(loop_DIFF > val)
-            print('2', timeit.strftime("%H:%M:%S"))
+            print('begining img2sql', timeit.strftime("%H:%M:%S"))
+            loop_DIFF = diff[segmented_dict[key1][1], segmented_dict[key1][0]] # only diff pixels in inside the polygon
+            thresh = filters.threshold_otsu(loop_DIFF) # find first threshold (background vs plant)
+            loop_DIFF[np.where(loop_DIFF < thresh)] = thresh #insert threshold value into all none plant pixels
+            thresh = filters.threshold_otsu(loop_DIFF) # find second threshold (plant vs edges)
+            plant_idx = np.where(loop_DIFF > thresh) #local plant index
+            print('finished both otsu thresholding', timeit.strftime("%H:%M:%S"))
             # find out original index instead of a and b
             # get time and date from file name
             date = image.metadata['acquisition date'].split(' ')[1]
-            print('3', timeit.strftime("%H:%M:%S"))
             time = image.metadata['start time'].split(' ')[2]
+            print('extracted date and time', timeit.strftime("%H:%M:%S"))
 
-            coord = [[i, j] for i, j in zip(segmented_dict[key1][0][a], segmented_dict[key1][1][a])]
-            temp_dict1 = {'name': name, 'date': date, 'time': time, 'coord': coord}
-            print('4', timeit.strftime("%H:%M:%S"))
+            coord = [[i, j] for i, j in zip(segmented_dict[key1][0][plant_idx], segmented_dict[key1][1][plant_idx])] #global plant index
+            plant_info = {'name': name, 'date': date, 'time': time, 'coord': coord}
+            print('converted to original index', timeit.strftime("%H:%M:%S"))
 
-            new_image = image[segmented_dict[key1][1], segmented_dict[key1][0]][a[0]]
-            temp_dict1['type'] = 'raw'
-            temp_dict2 = pd.DataFrame.from_dict(temp_dict1)
-            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=new_image.tolist())
-            column_df = pd.concat([temp_dict2, temp_dict3], axis=1)
+            plant_pixels = image[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
+            plant_info['type'] = 'raw'
+            plant_info_df = pd.DataFrame.from_dict(plant_info)
+            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
+            column_df = pd.concat([plant_info_df, temp_dict3], axis=1)
             df_collector[name] = column_df
-            print('5', timeit.strftime("%H:%M:%S"))
+            print('created raw df', timeit.strftime("%H:%M:%S"))
 
-            new_image = rad_image[segmented_dict[key1][1], segmented_dict[key1][0]][a[0]]
-            temp_dict1['type'] = 'rad'
-            temp_dict2 = pd.DataFrame.from_dict(temp_dict1)
-            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=new_image.tolist())
-            column_df = pd.concat([temp_dict2, temp_dict3], axis=1)
+            plant_pixels = rad_image[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
+            plant_info['type'] = 'rad'
+            plant_info_df = pd.DataFrame.from_dict(plant_info)
+            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
+            column_df = pd.concat([plant_info_df, temp_dict3], axis=1)
             df_collector[name] = df_collector[name].append(column_df)
-            print('6', timeit.strftime("%H:%M:%S"))
+            print('created rad df', timeit.strftime("%H:%M:%S"))
 
-            new_image = refle_img[segmented_dict[key1][1], segmented_dict[key1][0]][a[0]]
-            temp_dict1['type'] = 'ref'
-            temp_dict2 = pd.DataFrame.from_dict(temp_dict1)
-            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=new_image.tolist())
-            column_df = pd.concat([temp_dict2, temp_dict3], axis=1)
+            plant_pixels = refle_img[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
+            plant_info['type'] = 'ref'
+            plant_info_df = pd.DataFrame.from_dict(plant_info)
+            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
+            column_df = pd.concat([plant_info_df, temp_dict3], axis=1)
             df_collector[name] = df_collector[name].append(column_df)
-            print('7', timeit.strftime("%H:%M:%S"))
+            print('created ref df', timeit.strftime("%H:%M:%S"))
 
         dfx = pd.concat([df for df in df_collector.values()], ignore_index=True)
 
