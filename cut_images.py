@@ -1,13 +1,14 @@
-import os
 import pandas as pd
 import numpy as np
 import spectral.io.envi as envi
 import skimage.draw
-import time as timeit
+import time as time
 from skimage import filters
-
+import spectral as sp
 import inspect
+import matplotlib.pyplot as plt
 
+plt.show(block=True)
 
 def lineno():
     """Returns the current line number in our program."""
@@ -32,8 +33,9 @@ def read_roi(roi):
     data = load_roi_file(roi)
 
     # this list must comply with the same roi features in the file
-    group_lines = ['spectralon', 'v1', 'v2', 'v3', 'h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10',
-                   'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'Black1', 'Black2']
+    # group_lines = ['spectralon', 'v1', 'v2', 'v3', 'h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10',
+    #                'h11', 'h12', 'h13', 'h14', 'h15', 'h16', 'h17', 'h18', 'Black1', 'Black2']
+    group_lines = ['spectralon', 'v1', 'v2', 'v3', 'h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'Black1']
 
     # turn the ROI file to a DF, filter only to relevant rows
     df = pd.DataFrame(data, dtype=int)
@@ -80,8 +82,9 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     third_column = {}
     forth_column = {}
 
-    hor_lines = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15',
-                 'h16', 'h17', 'h18']
+    # hor_lines = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'h9', 'h10', 'h11', 'h12', 'h13', 'h14', 'h15',
+    #              'h16', 'h17', 'h18']
+    hor_lines = ['h0', 'h1', 'h2', 'h3', 'h4', 'h5']
     ver_lines = ['v1', 'v2', 'v3']
 
     def create_poly_1st_col(curr_hor_line):
@@ -191,7 +194,7 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
         poly1 = skimage.draw.polygon_perimeter(poly[:, 0], poly[:, 1])
         return poly1
 
-    print("line number", lineno())
+
     # create the polygones around each plant
     for curr_h_line in range(len(hor_lines) - 1):
         print(curr_h_line)
@@ -221,11 +224,11 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     third_keys = list(third_column.keys())
     forth_keys = list(forth_column.keys())
 
-    # calibrate the image
+        # calibrate the image
     image = envi.open(image_path).load().load()
     cal_img = envi.open(cal_path + '.hdr', image=cal_path + '.cal').load()
     dark_img = envi.open(D_image).load().mean(axis=0)
-    print("line number", lineno())
+    print("loaded images line number", lineno())
     # get the integration time
     time_integration = float(image.metadata['tint'][:2])
     rad_image = np.empty_like(image)
@@ -246,6 +249,7 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     black_x_stop = df[df['group_id'] == 'Black1']['X'].max()
     black_y_start = df[df['group_id'] == 'Black1']['Y'].min()
     black_y_stop = df[df['group_id'] == 'Black1']['Y'].max()
+
     # black panel mean spectrum
     black = rad_image[black_y_start:black_y_stop, black_x_start:black_x_stop]
     black_avg = black.mean(axis=(0, 1))
@@ -260,69 +264,81 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     nir_wave = float(image.metadata['wavelength'][NIR_CHANNEL])
     diff = np.subtract(nir, red) / (nir_wave - red_wave)
 
-    def imgs2sql(rowcol, names, segmented_dict):  # rowcol = keys of segmented images, names = name of plant
+    print("calculated diff image", lineno())
+
+    # """new addition"""
+    # sp.imshow(diff[:, :], stretch=(0.2, 0.98))
+    # for key1 in first_column.keys():
+    #     plt.plot(first_column[key1][0], first_column[key1][1], linewidth=4, alpha=0.3)
+    # for key1 in second_column.keys():
+    #     plt.plot(second_column[key1][0], second_column[key1][1], linewidth=4, alpha=0.3)
+    # for key1 in third_column.keys():
+    #     plt.plot(third_column[key1][0], third_column[key1][1], linewidth=4, alpha=0.3)
+    # for key1 in forth_column.keys():
+    #     plt.plot(forth_column[key1][0], forth_column[key1][1], linewidth=4, alpha=0.3)
+    # plt.show()
+    # """finish new addition"""
+
+    def col_imgs2sql(rowcol, names, segmented_dict):  # rowcol = keys of segmented images, names = name of plant
         df_collector = {}
 
         for key1, name in zip(rowcol, names):
             print(key1, name)
-            print('begining img2sql', timeit.strftime("%H:%M:%S"))
+            print('begining img2sql', time.strftime("%H:%M:%S"))
             loop_DIFF = diff[segmented_dict[key1][1], segmented_dict[key1][0]] # only diff pixels in inside the polygon
             thresh = filters.threshold_otsu(loop_DIFF) # find first threshold (background vs plant)
             loop_DIFF[np.where(loop_DIFF < thresh)] = thresh #insert threshold value into all none plant pixels
             thresh = filters.threshold_otsu(loop_DIFF) # find second threshold (plant vs edges)
             plant_idx = np.where(loop_DIFF > thresh) #local plant index
-            print('finished both otsu thresholding', timeit.strftime("%H:%M:%S"))
+            print('finished both otsu thresholding', time.strftime("%H:%M:%S"))
             # find out original index instead of a and b
             # get time and date from file name
             date = image.metadata['acquisition date'].split(' ')[1]
-            time = image.metadata['start time'].split(' ')[2]
-            print('extracted date and time', timeit.strftime("%H:%M:%S"))
+            time_aquision = image.metadata['start time'].split(' ')[2]
+            print('extracted date and time', time.strftime("%H:%M:%S"))
 
-            coord = [[i, j] for i, j in zip(segmented_dict[key1][0][plant_idx], segmented_dict[key1][1][plant_idx])] #global plant index
-            plant_info = {'name': name, 'date': date, 'time': time, 'coord': coord}
-            print('converted to original index', timeit.strftime("%H:%M:%S"))
-
-            plant_pixels = image[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
-            plant_info['type'] = 'raw'
+            plant_info = {'name': name, 'date': date, 'time': time_aquision, 'coordX': segmented_dict[key1][0][plant_idx[0]], 'coordY': segmented_dict[key1][1][plant_idx[0]] }
             plant_info_df = pd.DataFrame.from_dict(plant_info)
-            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
-            column_df = pd.concat([plant_info_df, temp_dict3], axis=1)
-            df_collector[name] = column_df
-            print('created raw df', timeit.strftime("%H:%M:%S"))
+            print('converted to original index', time.strftime("%H:%M:%S"))
+
+            plant_info_df['type'] = 'raw'
+            plant_pixels = image[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
+            plant_pixels_spectra = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
+            spectra_type_df = pd.concat([plant_info_df, plant_pixels_spectra], axis=1)
+            df_collector[name] = spectra_type_df
+            print('created raw df', time.strftime("%H:%M:%S"))
 
             plant_pixels = rad_image[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
-            plant_info['type'] = 'rad'
-            plant_info_df = pd.DataFrame.from_dict(plant_info)
-            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
-            column_df = pd.concat([plant_info_df, temp_dict3], axis=1)
-            df_collector[name] = df_collector[name].append(column_df)
-            print('created rad df', timeit.strftime("%H:%M:%S"))
+            plant_info_df['type'] = 'rad'
+            plant_pixels_spectra = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
+            spectra_type_df = pd.concat([plant_info_df, plant_pixels_spectra], axis=1)
+            df_collector[name] = df_collector[name].append(spectra_type_df)
+            print('created rad df', time.strftime("%H:%M:%S"))
 
             plant_pixels = refle_img[segmented_dict[key1][1], segmented_dict[key1][0]][plant_idx[0]]
-            plant_info['type'] = 'ref'
-            plant_info_df = pd.DataFrame.from_dict(plant_info)
-            temp_dict3 = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
-            column_df = pd.concat([plant_info_df, temp_dict3], axis=1)
-            df_collector[name] = df_collector[name].append(column_df)
-            print('created ref df', timeit.strftime("%H:%M:%S"))
+            plant_info_df['type'] = 'ref'
+            plant_pixels_spectra = pd.DataFrame(columns=image.metadata['wavelength'], data=plant_pixels.tolist())
+            spectra_type_df = pd.concat([plant_info_df, plant_pixels_spectra], axis=1)
+            df_collector[name] = df_collector[name].append(spectra_type_df)
+            print('created ref df', time.strftime("%H:%M:%S"))
 
-        dfx = pd.concat([df for df in df_collector.values()], ignore_index=True)
+        col_dfx = pd.concat([df for df in df_collector.values()], ignore_index=True)
 
-        return dfx
+        return col_dfx
 
     def calibration_sql(name, data):
         date = image.metadata['acquisition date'].split(' ')[1]
-        time = image.metadata['start time'].split(' ')[2]
-        temp_dict1 = {'name': name, 'date': date, 'time': time, 'type': 'rad'}
-        temp_dict2 = pd.DataFrame(temp_dict1, index=[0])
+        time_aquision = image.metadata['start time'].split(' ')[2]
+        plant_info = {'name': name, 'date': date, 'time': time_aquision, 'type': 'rad'}
+        temp_dict2 = pd.DataFrame(plant_info, index=[0])
         temp_dict3 = pd.DataFrame(data.tolist(), image.metadata['wavelength'])
         column_df = pd.concat([temp_dict2, temp_dict3.T], axis=1, sort=False)
         return column_df
 
-    first_column_df = imgs2sql(first_keys, first_column_names, first_column)
-    second_column_df = imgs2sql(second_keys, second_column_names, second_column)
-    third_column_df = imgs2sql(third_keys, third_column_names, third_column)
-    forth_column_df = imgs2sql(forth_keys, forth_column_names, forth_column)
+    first_column_df = col_imgs2sql(first_keys, first_column_names, first_column)
+    second_column_df = col_imgs2sql(second_keys, second_column_names, second_column)
+    third_column_df = col_imgs2sql(third_keys, third_column_names, third_column)
+    forth_column_df = col_imgs2sql(forth_keys, forth_column_names, forth_column)
     spectralon_df = calibration_sql('spectralon', spectralon_avg)
     black_df = calibration_sql('black', black_avg)
     # stack everything
@@ -335,7 +351,7 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     name_df = all_df['name'].astype('category')
     date_df = pd.to_datetime(all_df['date'])
 
-    df2 = pd.concat((name_df, date_df, type_df, all_df['time'], all_df['coord'], df_float_converted,), axis=1,
+    df2 = pd.concat((name_df, date_df, type_df, all_df['time'], all_df['coordX'], all_df['coordY'], df_float_converted), axis=1,
                     sort=False)
 
     # pickle uses lots of memory - so lets delete some vars
@@ -351,7 +367,7 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     del third_column_df
     del forth_column_df
 
-    df2.to_pickle(ROI[:-7] + 'pickle')
+    df2.to_pickle(roi[:-7] + 'pickle',protocol = 4)
 
 
 #    df2.to_csv(ROI[:-7] + 'csv')
@@ -370,11 +386,13 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
 #    cut_images_in_fldr(DARK,ROI,IMAGE1)
 
 # per image
-TEST_ROOT = r'N:\Shahar\test automatic method'
-CAL_FILE = TEST_ROOT + r'\Radiometric_1x1'
-TEST_DIR = TEST_ROOT + r'\emptyname_2018-09-12_07-25-45'
-IMAGE = TEST_DIR + r'\capture\emptyname_2018-09-12_07-25-45.hdr'
-DARK_IMAGE = TEST_DIR + r'\capture\DARKREF_emptyname_2018-09-12_07-25-45.hdr'
-ROI = TEST_DIR + r'\ROI.txt'
+TEST_ROOT = r'C:\Learning from benny'
+CAL_FILE = r'C:\Learning from benny\Radiometric_1x1'
+# TEST_DIR = TEST_ROOT + r'\emptyname_2018-09-20_07-26-11'
+IMAGE = TEST_ROOT + r'\subset.hdr'
+DARK_IMAGE = TEST_ROOT + r'\DARKREF_emptyname_2018-09-13_07-05-57.hdr'
+ROI = TEST_ROOT + r'\ROI2.txt'
 
+overall_start = time.time()
 cut_images_in_fldr(DARK_IMAGE, ROI, IMAGE, CAL_FILE)
+print('overall duration:', time.time()-overall_start, 's')
