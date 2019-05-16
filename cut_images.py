@@ -244,17 +244,18 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     # white panel mean spectrum
     spectralon = rad_image[ref_y_start:ref_y_stop, ref_x_start:ref_x_stop]
     spectralon_avg = spectralon.mean(axis=(0, 1))
-    # black panel position
-    black_x_start = df[df['group_id'] == 'Black1']['X'].min()
-    black_x_stop = df[df['group_id'] == 'Black1']['X'].max()
-    black_y_start = df[df['group_id'] == 'Black1']['Y'].min()
-    black_y_stop = df[df['group_id'] == 'Black1']['Y'].max()
+    # # black panel position
+    # black_x_start = df[df['group_id'] == 'Black1']['X'].min()
+    # black_x_stop = df[df['group_id'] == 'Black1']['X'].max()
+    # black_y_start = df[df['group_id'] == 'Black1']['Y'].min()
+    # black_y_stop = df[df['group_id'] == 'Black1']['Y'].max()
+    #
+    # # black panel mean spectrum
+    # black = rad_image[black_y_start:black_y_stop, black_x_start:black_x_stop]
+    # black_avg = black.mean(axis=(0, 1))
 
-    # black panel mean spectrum
-    black = rad_image[black_y_start:black_y_stop, black_x_start:black_x_stop]
-    black_avg = black.mean(axis=(0, 1))
-
-    refle_img = np.divide((np.subtract(rad_image, black_avg)), (np.subtract(spectralon_avg, black_avg)))
+    # refle_img = np.divide((np.subtract(rad_image, black_avg)), (np.subtract(spectralon_avg, black_avg)))
+    refle_img = np.divide(rad_image, spectralon_avg)
 
     RED_CHANNEL = 210
     NIR_CHANNEL = 266
@@ -340,9 +341,10 @@ def cut_images_in_fldr(D_image, roi, image_path, cal_path):
     third_column_df = col_imgs2sql(third_keys, third_column_names, third_column)
     forth_column_df = col_imgs2sql(forth_keys, forth_column_names, forth_column)
     spectralon_df = calibration_sql('spectralon', spectralon_avg)
-    black_df = calibration_sql('black', black_avg)
+    # black_df = calibration_sql('black', black_avg)
     # stack everything
     frames = [first_column_df, second_column_df, third_column_df, forth_column_df, spectralon_df, black_df]
+    frames = [first_column_df, second_column_df, third_column_df, forth_column_df, spectralon_df]
     all_df = pd.concat(frames, sort=False)
 
     df_float = all_df.select_dtypes(include=['float'])
